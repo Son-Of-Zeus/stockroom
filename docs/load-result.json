@@ -1,0 +1,18 @@
+{
+  "requests": 120,
+  "workers": 8,
+  "elapsedSeconds": 0.666,
+  "completedRequestsPerSecond": 180.1,
+  "successfulRequestsPerSecond": 91.55,
+  "statusCounts": {
+    "200": 61,
+    "429": 59
+  },
+  "instanceCounts": {
+    "native-a": 60,
+    "native-b": 60
+  },
+  "latencyP50Ms": 26.67,
+  "latencyP95Ms": 138.4,
+  "note": "This measures this local run, including rejected requests. It does not establish production capacity."
+}

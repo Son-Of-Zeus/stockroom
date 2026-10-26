@@ -1,0 +1,113 @@
+name: stockroom
+x-app: &app
+  image: stockroom:local
+  build: .
+  pull_policy: never
+  restart: unless-stopped
+  environment: &app-env
+    OWNER_ACCESS_KEY: ${OWNER_ACCESS_KEY:?Set OWNER_ACCESS_KEY in .env}
+    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+    BIND_ADDRESS: 0.0.0.0
+    MONGODB_URI: mongodb://mongo:27017/stockroom?replicaSet=rs0&serverSelectionTimeoutMS=3000&timeoutMS=10000
+    REDIS_RATE: rate-redis:6379
+    REDIS_CACHES: cache-a:6379,cache-b:6379
+    RATE_CAPACITY: ${RATE_CAPACITY:-60}
+    RATE_REFILL: ${RATE_REFILL:-2}
+    TRUSTED_PROXY_IP: 172.30.78.10
+  depends_on:
+    mongo-init:
+      condition: service_completed_successfully
+    rate-redis:
+      condition: service_healthy
+  healthcheck:
+    test: [CMD, java, -cp, /app/health, com.example.demo.inventory.HealthProbe]
+    interval: 10s
+    timeout: 8s
+    start_period: 40s
+    retries: 10
+  networks:
+    - inventory
+services:
+  mongo:
+    image: mongo:8.0
+    pull_policy: never
+    command: [mongod, --replSet, rs0, --bind_ip_all]
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: [CMD, mongosh, --quiet, --eval, "quit(db.adminCommand({ping:1}).ok ? 0 : 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - inventory
+  mongo-init:
+    image: mongo:8.0
+    pull_policy: never
+    entrypoint: [mongosh, --host, mongo:27017, --quiet, /init.js]
+    volumes:
+      - ./infra/mongo-init.js:/init.js:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - inventory
+  rate-redis:
+    image: redis:8-alpine
+    pull_policy: never
+    command: [redis-server, --appendonly, "yes", --maxmemory, 128mb, --maxmemory-policy, noeviction]
+    volumes:
+      - rate-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - inventory
+  cache-a:
+    image: redis:8-alpine
+    pull_policy: never
+    command: [redis-server, --maxmemory, 64mb, --maxmemory-policy, allkeys-lru]
+    networks:
+      - inventory
+  cache-b:
+    image: redis:8-alpine
+    pull_policy: never
+    command: [redis-server, --maxmemory, 64mb, --maxmemory-policy, allkeys-lru]
+    networks:
+      - inventory
+  app-a:
+    <<: *app
+    environment:
+      <<: *app-env
+      INSTANCE_ID: app-a
+  app-b:
+    <<: *app
+    environment:
+      <<: *app-env
+      INSTANCE_ID: app-b
+  nginx:
+    image: nginx:1.28-alpine
+    pull_policy: never
+    restart: unless-stopped
+    ports:
+      - ${HOST_BIND:-127.0.0.1}:8080:80
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app-a:
+        condition: service_healthy
+      app-b:
+        condition: service_healthy
+    networks:
+      inventory:
+        ipv4_address: 172.30.78.10
+volumes:
+  mongo-data:
+  rate-data:
+networks:
+  inventory:
+    ipam:
+      config:
+        - subnet: 172.30.78.0/24
