@@ -165,3 +165,5 @@ python3 scripts/load_test.py --requests 120 --workers 8
 ```
 
 HTTP 429 is expected when the token bucket is exhausted. The output separates successful throughput from total completed throughput. Use `--second-url http://127.0.0.1:8081` to alternate requests between two direct instances when you have configured those ports. With Docker, use the default Nginx URL. See [verification results](docs/VERIFICATION.md), [API reference](docs/API.md), [system design](docs/ARCHITECTURE.md), and [proposed contributions](docs/CONTRIBUTIONS.md).
+
+For setup and Apache JMeter tests, use the [JMeter guide](docs/JMETER.md) and the ready-to-open [read test plan](tests/jmeter/inventory-read.jmx). JMeter is not installed by this project.
