@@ -71,6 +71,26 @@ function statusRow(name,healthy){return `<div class="status-row"><span>${esc(nam
 function navigate(view){state.view=view;state.page=0;state.search='';state.archived=false;state.warehouseId='';state.low=false;load();}
 function field(label,name,value='',type='text',extra=''){return `<label>${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;}
 function lookup(label,name,type,value=''){return `<label>${esc(label)}<input class="lookup-search" type="search" data-lookup="${type}" data-target="${name}" aria-label="Search ${esc(label.toLowerCase())}" placeholder="Search by name…"><select aria-label="${esc(label)}" name="${name}" data-source="${type}" data-current="${esc(value)}" required><option value="">Select ${esc(label.toLowerCase())}</option></select></label>`;}
+function productLookup(){return `<fieldset class="product-lookup"><legend>Product</legend><label class="product-search-label" for="product-search">Search by name or SKU</label><input id="product-search" type="search" maxlength="80" placeholder="e.g. pr or BRG" autocomplete="off" aria-describedby="product-search-status" required><p id="product-search-status" class="suggestion-status" role="status">Type at least 2 characters to see up to 3 suggestions.</p><div class="product-suggestions" role="group" aria-label="Product suggestions"></div></fieldset>`;}
+const productRequests=new WeakMap();
+function resetProductSuggestions(input){
+ const lookup=input.closest('.product-lookup');productRequests.set(lookup,(productRequests.get(lookup)||0)+1);
+ input.setCustomValidity('Select a product from the suggestions.');
+ $('.product-suggestions',lookup).replaceChildren();
+ $('.product-suggestions',lookup).setAttribute('aria-busy','false');
+ $('.suggestion-status',lookup).textContent=input.value.trim().length<2?'Type at least 2 characters to see up to 3 suggestions.':'Searching products…';
+}
+async function fillProductSuggestions(input){
+ const lookup=input.closest('.product-lookup');const search=input.value.trim();if(search.length<2)return;
+ const request=productRequests.get(lookup);const suggestions=$('.product-suggestions',lookup);suggestions.setAttribute('aria-busy','true');
+ try{
+ const items=(await api(`/autocomplete?prefix=${encodeURIComponent(search)}`)).slice(0,3);
+ if(!lookup.isConnected||productRequests.get(lookup)!==request)return;
+ suggestions.innerHTML=items.map(r=>`<label class="product-suggestion"><input type="radio" name="productId" value="${esc(r.id)}" required><span class="suggestion-content"><span class="suggestion-name">${esc(r.name)}</span><span class="suggestion-sku">${esc(r.sku)}</span></span></label>`).join('');
+ $('.suggestion-status',lookup).textContent=items.length?`${items.length} suggestion${items.length===1?'':'s'}. Select a product below.`:'No matching products. Try the start of a name or SKU.';
+ }catch(error){if(lookup.isConnected&&productRequests.get(lookup)===request)$('.suggestion-status',lookup).textContent=error.message;}
+ finally{if(productRequests.get(lookup)===request)suggestions.setAttribute('aria-busy','false');}
+}
 function openDialog(title,body){$('#form-title').textContent=title;$('#form-body').innerHTML=body;if(!$('#form-dialog').open)$('#form-dialog').showModal();}
 async function fillLookup(select,search=''){
  const result=await api(select.dataset.source==='products'&&search.trim().length>=2?`/autocomplete?prefix=${encodeURIComponent(search.trim())}`:`/${select.dataset.source}?size=100&search=${encodeURIComponent(search)}`);const data=Array.isArray(result)?{items:result}:result;if(!select.isConnected)return;
@@ -90,7 +110,10 @@ async function openRecord(row){
 function showFormError(error){const target=$('#form-error');if(target)target.textContent=error.message;else toast(error.message);}
 async function openStock(){
  const requestKey=crypto.randomUUID();let pendingBody=null;
- openDialog('Record a stock action',`<form id="stock-form"><label>Action<select name="operation" id="stock-operation"><option value="receipts">Receive stock</option><option value="issues">Issue stock</option><option value="transfers">Transfer stock</option></select></label>${lookup('Product','productId','products')}${lookup('Warehouse','warehouseId','warehouses')}<div id="destination" hidden>${lookup('Destination warehouse','destinationWarehouseId','warehouses')}</div>${field('Quantity','quantity',1,'number','required min="1" max="1000000000" step="1"')}<label>Note<textarea name="note" maxlength="400" placeholder="Optional reference or reason"></textarea></label><p class="inline-note">The same request key is kept if a submission must be retried. Quantities are whole units.</p><p class="error" id="form-error" role="alert"></p><div class="form-actions"><button class="button" type="button" data-close>Cancel</button><button class="button primary" type="submit">Record movement</button></div></form>`);
+ openDialog('Record a stock action',`<form id="stock-form"><label>Action<select name="operation" id="stock-operation"><option value="receipts">Receive stock</option><option value="issues">Issue stock</option><option value="transfers">Transfer stock</option></select></label>${productLookup()}${lookup('Warehouse','warehouseId','warehouses')}<div id="destination" hidden>${lookup('Destination warehouse','destinationWarehouseId','warehouses')}</div>${field('Quantity','quantity',1,'number','required min="1" max="1000000000" step="1"')}<label>Note<textarea name="note" maxlength="400" placeholder="Optional reference or reason"></textarea></label><p class="inline-note">The same request key is kept if a submission must be retried. Quantities are whole units.</p><p class="error" id="form-error" role="alert"></p><div class="form-actions"><button class="button" type="button" data-close>Cancel</button><button class="button primary" type="submit">Record movement</button></div></form>`);
+ resetProductSuggestions($('#product-search'));
+ $('#product-search').addEventListener('input',event=>{const input=event.target;clearTimeout(lookupTimers.get(input));resetProductSuggestions(input);lookupTimers.set(input,setTimeout(()=>fillProductSuggestions(input),250));});
+ $('.product-suggestions').addEventListener('change',event=>{if(event.target.name==='productId'){$('#product-search').setCustomValidity('');$('#product-search-status').textContent='Product selected. You can now record the stock action.';}});
  $('#destination select').required=false;
  document.querySelectorAll('#stock-form select[data-source]').forEach(s=>fillLookup(s).catch(showFormError));
  $('#stock-operation').addEventListener('change',event=>{const transfer=event.target.value==='transfers';$('#destination').hidden=!transfer;$('#destination select').required=transfer;});
