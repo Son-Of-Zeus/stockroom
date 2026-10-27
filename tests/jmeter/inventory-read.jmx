@@ -21,7 +21,7 @@
         <stringProp name="HTTPSampler.implementation"></stringProp>
       </ConfigTestElement>
       <hashTree/>
-      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Owner authorization">
+      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Owner authorization" enabled="true">
         <collectionProp name="HeaderManager.headers">
           <elementProp name="Authorization" elementType="Header">
             <stringProp name="Header.name">Authorization</stringProp>
@@ -45,7 +45,7 @@
         </elementProp>
       </ThreadGroup>
       <hashTree>
-        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Per-thread request delay" enabled="true">
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Per-thread request delay">
           <stringProp name="ConstantTimer.delay">${__P(delay,1000)}</stringProp>
         </ConstantTimer>
         <hashTree/>

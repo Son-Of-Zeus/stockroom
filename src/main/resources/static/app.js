@@ -11,7 +11,7 @@ const views = {
  warehouses:['Warehouses','A PLACE FOR EVERYTHING','Keep every location connected.'],
  suppliers:['Suppliers','YOUR SUPPLY NETWORK','The people who keep your shelves stocked.'],
  movements:['Movements','EVERY CHANGE, ACCOUNTED FOR','A permanent record of stock coming in and going out.'],
- system:['System design','BUILT TO WORK TOGETHER','Explore the concepts behind your inventory system.']
+ system:['BUILT TO WORK TOGETHER','Explore the concepts behind your inventory system.']
 };
 let toastTimer;
 function toast(message){$('#toast').textContent=message;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4500);}
