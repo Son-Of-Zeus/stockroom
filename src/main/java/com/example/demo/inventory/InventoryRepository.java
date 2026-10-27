@@ -108,6 +108,7 @@ public class InventoryRepository {
         Object id = result.remove("_id");
         if (id != null) result.put("id", id.toString());
         result.remove("codeHash");
+        result.remove("originalUrl");
         result.remove("requestKey");
         result.remove("fingerprint");
         result.remove("stockRevision");

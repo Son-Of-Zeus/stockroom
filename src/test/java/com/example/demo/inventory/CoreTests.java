@@ -15,6 +15,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CoreTests {
     @Test
+    void warehouseLabelsProduceStableSha256ShortCodes() {
+        String original = ShareService.originalUrl("https://example.com", "42", "North manager");
+        assertEquals("https://example.com/shared.html#warehouse/42/warehouse_link_for_North%20manager", original);
+        assertEquals("GeQj7fGX_G75_tGV8wnXaP", ShareService.shortCode(original));
+        assertNotEquals(ShareService.shortCode(original), ShareService.shortCode(
+                ShareService.originalUrl("https://example.com", "43", "North manager")));
+        String encoded = ShareService.originalUrl("https://example.com", "42", "A/B #+% தமிழ்");
+        assertTrue(encoded.contains("A%2FB%20%23%2B%25%20"));
+        assertDoesNotThrow(() -> java.net.URI.create(encoded));
+    }
+
+    @Test
     void stableRingIgnoresNodeOrder() {
         var first = new ConsistentHashRing(List.of("a:6379", "b:6379"));
         var second = new ConsistentHashRing(List.of("b:6379", "a:6379"));
@@ -65,13 +77,14 @@ class CoreTests {
 
     @Test
     void publicViewsRemoveSecretsWithoutChangingStorage() {
-        var source = new Document("_id", "9007199254740993").append("codeHash", "secret")
+        var source = new Document("_id", "9007199254740993").append("codeHash", "secret").append("originalUrl", "private-url")
                 .append("requestKey", "request").append("fingerprint", "body").append("stockRevision", 10)
                 .append("createdAt", new Date(0));
         Document view = InventoryRepository.view(source);
         assertEquals("9007199254740993", view.getString("id"));
         assertEquals("1970-01-01T00:00:00Z", view.getString("createdAt"));
         assertFalse(view.containsKey("codeHash"));
+        assertFalse(view.containsKey("originalUrl"));
         assertFalse(view.containsKey("requestKey"));
         assertFalse(view.containsKey("fingerprint"));
         assertTrue(source.containsKey("codeHash"));

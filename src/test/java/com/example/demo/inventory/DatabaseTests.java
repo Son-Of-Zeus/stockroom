@@ -6,6 +6,7 @@ import org.bson.Document;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -149,6 +150,52 @@ class DatabaseTests {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void shareLinksReuseTheOriginalUrlAndKeepRevocation() throws Exception {
+        var ids = fixture();
+        var settings = new Settings(new MockEnvironment()
+                .withProperty("app.owner-key", "test-owner-key-at-least-24-characters")
+                .withProperty("app.base-url", "https://example.com"));
+        var shares = new ShareService(store, stock, settings);
+        var request = new Requests.Link("North / manager # தமிழ்");
+        var executor = Executors.newFixedThreadPool(4);
+        try {
+            List<Callable<java.util.Map<String, Object>>> tasks = new ArrayList<>();
+            for (int i = 0; i < 8; i++) tasks.add(() -> shares.create(ids.get(1), request));
+            var results = executor.invokeAll(tasks);
+            var first = results.get(0).get();
+            for (var result : results) assertEquals(first, result.get());
+            assertEquals(1, store.collection("links").countDocuments(eq("warehouseId", ids.get(1))));
+            String original = (String) first.get("originalUrl");
+            String code = ((String) first.get("url")).substring("https://example.com/s/".length());
+            String fragment = original.substring(original.indexOf('#') + 1);
+            assertEquals(ids.get(1), shares.resolve(code).getString("id"));
+            assertEquals(ids.get(1), shares.resolve(fragment).getString("id"));
+            assertEquals(original, shares.destination(code));
+            assertNotEquals(first.get("url"), shares.create(ids.get(2), request).get("url"));
+            assertNotEquals(first.get("url"), shares.create(ids.get(1), new Requests.Link("Another manager")).get("url"));
+            assertFalse(shares.list(ids.get(1), 0, 20).toString().contains("originalUrl"));
+            shares.revoke(ids.get(1), ((Document) first.get("link")).getString("id"));
+            assertEquals(404, assertThrows(ApiException.class, () -> shares.resolve(code)).status());
+            assertEquals(404, assertThrows(ApiException.class, () -> shares.resolve(fragment)).status());
+            assertEquals(409, assertThrows(ApiException.class, () -> shares.create(ids.get(1), request)).status());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void existingRandomLinksStillResolve() {
+        var ids = fixture();
+        String code = "A".repeat(22);
+        store.collection("links").insertOne(new Document("_id", store.nextId())
+                .append("warehouseId", ids.get(1)).append("codeHash", Checks.hash(code)).append("active", true));
+        var settings = new Settings(new MockEnvironment().withProperty("app.owner-key", "test-owner-key-at-least-24-characters"));
+        var shares = new ShareService(store, stock, settings);
+        assertEquals(ids.get(1), shares.resolve(code).getString("id"));
+        assertEquals("/shared.html#" + code, shares.destination(code));
     }
 
     @Test

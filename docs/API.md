@@ -27,7 +27,7 @@ List endpoints accept `page` (0..10000) and `size` (1..100, default 20). They re
 | POST | `/api/v1/stock/transfers` | Transfer stock. Requires `Idempotency-Key`. |
 | GET | `/api/v1/movements` | History; optional `warehouseId`. |
 | GET | `/api/v1/autocomplete?prefix=be` | Up to ten active product suggestions. |
-| POST | `/api/v1/warehouses/{id}/links` | Create a warehouse short link. |
+| POST | `/api/v1/warehouses/{id}/links` | Create or reuse an active warehouse short link for the label. Returns `link`, `originalUrl`, and `url`. |
 | GET | `/api/v1/warehouses/{id}/links` | Link metadata; secrets are omitted. |
 | DELETE | `/api/v1/warehouses/{id}/links/{linkId}` | Revoke a link. Repeat revocation succeeds. |
 | GET | `/api/v1/system` | Current instance, dependency health, token settings, and cache routing/counters. |
@@ -88,10 +88,12 @@ curl --fail-with-body http://localhost:8080/api/v1/stock/receipts \
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/s/{code}` | Validate a short code and redirect to the warehouse page. |
+| GET | `/s/{code}` | Validate a short code and redirect to its original warehouse URL. |
 | GET | `/api/shared/warehouse` | Warehouse details and first pages of stock, low-stock balances, and movements. |
 | GET | `/api/shared/stock` | Paginated warehouse stock; optional `low=true`. |
 | GET | `/api/shared/movements` | Paginated history for the linked warehouse. |
+
+New short codes use the first 22 characters of Base64 URL-encoded SHA-256 of `PUBLIC_BASE_URL/shared.html#warehouse/{warehouseId}/warehouse_link_for_{encoded_label}`. The same URL returns the same active link. Reusing a revoked label or detecting a short-code collision returns HTTP 409. Shared APIs accept the short code or the original URL fragment as the bearer value.
 
 Only `page`, `size`, and `low` query parameters are allowed on shared APIs. Supplying `warehouseId` is rejected. All shared API writes return 405. A manager code on an owner endpoint returns 401. Missing, invalid, revoked, or archived-warehouse codes return 404. There is no public autocomplete or master catalog endpoint.
 

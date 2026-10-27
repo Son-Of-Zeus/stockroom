@@ -1,4 +1,6 @@
 import concurrent.futures
+import base64
+import hashlib
 import os
 import time
 import unittest
@@ -44,6 +46,13 @@ class InventoryTests(unittest.TestCase):
     def test_03_manager_scope_and_revocation(self):
         result = self.api.ok('POST', f'/api/v1/warehouses/{self.warehouses[0]["id"]}/links', {'label': 'Test manager'})
         code = result['url'].rsplit('/', 1)[1]
+        expected = base64.urlsafe_b64encode(hashlib.sha256(result['originalUrl'].encode()).digest()).decode()[:22]
+        self.assertEqual(expected, code)
+        self.assertIn('/warehouse_link_for_Test%20manager', result['originalUrl'])
+        repeated = self.api.ok('POST', f'/api/v1/warehouses/{self.warehouses[0]["id"]}/links', {'label': 'Test manager'})
+        self.assertEqual(result, repeated)
+        original_token = result['originalUrl'].split('#', 1)[1]
+        self.assertEqual(200, self.api.request('GET', '/api/shared/warehouse', key=original_token)[0])
         status, view, headers = self.api.request('GET', '/api/shared/warehouse', key=code)
         self.assertEqual(200, status)
         self.assertEqual(self.warehouses[0]['id'], view['warehouse']['id'])
@@ -58,8 +67,11 @@ class InventoryTests(unittest.TestCase):
         listed = self.api.ok('GET', f'/api/v1/warehouses/{self.warehouses[0]["id"]}/links')
         self.assertNotIn(code, str(listed))
         self.assertNotIn('codeHash', str(listed))
+        self.assertNotIn('originalUrl', str(listed))
         self.api.ok('DELETE', f'/api/v1/warehouses/{self.warehouses[0]["id"]}/links/{result["link"]["id"]}')
         self.assertEqual(404, self.second.request('GET', '/api/shared/warehouse', key=code)[0])
+        self.assertEqual(404, self.second.request('GET', '/api/shared/warehouse', key=original_token)[0])
+        self.assertEqual(409, self.api.request('POST', f'/api/v1/warehouses/{self.warehouses[0]["id"]}/links', {'label': 'Test manager'})[0])
         self.assertEqual(404, self.api.request('GET', '/api/shared/warehouse', key='A' * 22)[0])
 
     def test_04_idempotency_across_instances(self):

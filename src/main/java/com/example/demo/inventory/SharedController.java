@@ -23,8 +23,7 @@ public class SharedController {
 
     @GetMapping("/s/{code}")
     public ResponseEntity<Void> shortLink(@PathVariable String code) {
-        shares.resolve(code);
-        return ResponseEntity.status(303).location(URI.create("/shared.html#" + code)).build();
+        return ResponseEntity.status(303).location(URI.create(shares.destination(code))).build();
     }
 
     @GetMapping("/api/shared/warehouse")

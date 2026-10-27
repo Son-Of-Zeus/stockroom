@@ -72,9 +72,11 @@ The small `RedisClient` is a bounded RESP2 adapter built with JDK sockets. It su
 
 Owner APIs require the configured secret in an authorization header. Its hash is compared in constant time. There are no owner accounts or server sessions. The browser keeps the key only in memory.
 
-A short-link code is 16 cryptographically random bytes encoded as 22 URL-safe characters. MongoDB stores only its SHA-256 hash and warehouse mapping. The short route validates the mapping, then redirects to `/shared.html#code`. The manager page sends the code in its authorization header. API calls never accept a warehouse selector for shared views.
+The original URL is `PUBLIC_BASE_URL/shared.html#warehouse/{warehouseId}/warehouse_link_for_{encoded_label}`. The label uses UTF-8 percent encoding, with `%20` for spaces. SHA-256 hashes the full original URL. The first 22 characters of the Base64 URL encoding of this digest form the short code. MongoDB stores the original URL, a SHA-256 hash of the short code, and the warehouse mapping. A repeated request for the same URL returns the same active link. A revoked label returns HTTP 409. A short-code collision with another original URL also returns HTTP 409. The short route validates the mapping and redirects to the original URL. The manager page sends its fragment in the authorization header; the server hashes that fragment URL to find the mapping. Existing random codes still resolve and redirect to `/shared.html#code`. API calls never accept a warehouse selector for shared views.
 
-The manager APIs check the link and warehouse status for every request. Revocation is shared across instances without a cache. Transfer records hide the other warehouse’s identity. Shared responses use `Cache-Control: no-store`; referrers are disabled; browser scripts and styles come only from the application. Proxy and app access logs are disabled. An owner can copy a new code once; listing links returns metadata only.
+These URLs are deterministic. SHA-256 does not add secrecy to a predictable warehouse ID and label. A person who knows those values and the public base URL can derive the link.
+
+The manager APIs check the link and warehouse status for every request. Revocation is shared across instances without a cache. Transfer records hide the other warehouse’s identity. Shared responses use `Cache-Control: no-store`; referrers are disabled; browser scripts and styles come only from the application. Proxy and app access logs are disabled. Listing links returns metadata only and omits the original URL and code hash. The browser logs the original URL when the owner generates a link.
 
 ## Scale boundaries
 

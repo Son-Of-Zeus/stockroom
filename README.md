@@ -88,7 +88,7 @@ The `mongo-data` volume holds inventory and links. The `rate-data` volume holds 
 
 ### Warehouse links
 
-Open **Warehouses → Share link**, enter a label, and generate a link. Copy the new link before closing the dialog. Only a SHA-256 hash of the random 128-bit code is stored. An existing link cannot be reconstructed from the list; create a replacement if you lose it.
+Open **Warehouses → Share link**, enter a label, and generate a link. The original URL is `PUBLIC_BASE_URL/shared.html#warehouse/{warehouseId}/warehouse_link_for_{encoded_label}`. The app hashes this full URL with SHA-256, encodes the digest with Base64 URL encoding, and uses its first 22 characters as the short code. The browser console logs the original URL before it shows the short link. The same warehouse and label return the same active link. After revocation, use a new label; a revoked label cannot be reused. Link metadata lists omit the original URL and code hash. Existing random links continue to work.
 
 A manager can see the warehouse name, code, location, stock, low-stock items, and relevant movement history. The manager cannot write stock, see the master catalog, list warehouses, or choose another warehouse. Shared transfer history hides the other warehouse’s identity and operational notes.
 
